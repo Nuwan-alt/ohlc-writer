@@ -69,60 +69,48 @@ public class ServiceManager {
 
             System.out.println("Table [" + TABLE_NAME + "] exists on database [" + DATABASE_NAME + "] . Skipping database creation");
         }
+
     }
 
-    public void writeRecords(TimestreamWriteClient timestreamWriteClient, List<Record> ohlcTs) {
+    public void writeRecords(TimestreamWriteClient timestreamWriteClient, List<Record> records) {
 
+        int rejectCount = 0;
         System.out.println("Records writing started");
-        // Specify repeated values for all records
-        List<Record> records = ohlcTs;
-        List<Dimension> dimensions = new ArrayList<>();
-        long currentTime = System.currentTimeMillis();
-
-        final Dimension region = Dimension.builder().name("region").value("us-east-1").build();
-
-        dimensions.add(region);
-
+        batchUploadStatus.info(" **** Records writing started **** ");
+        
         WriteRecordsRequest writeRecordsRequest = WriteRecordsRequest.builder()
                 .databaseName(DATABASE_NAME)
                 .tableName(TABLE_NAME)
                 .records(records)
-//                .commonAttributes(commonAttributes)
                 .build();
 
         try {
             WriteRecordsResult writeRecordsResult;
             WriteRecordsResponse WriteRecordsResponse = timestreamWriteClient.writeRecords(writeRecordsRequest);
 
-            batchUploadStatus.info("======= Successfully Uploaded! =======");
-            batchUploadStatus.info("======= Successfully Uploaded! =======");
-            System.out.println( sdf3.format(new Timestamp(System.currentTimeMillis())) + " ======= Successfully Uploaded! ======= " +records.size());
+            batchUploadStatus.info("======= Successfully Uploaded! Batch size - {} =======",records.size());
 
-//            System.out.println("WriteRecords Status: " + WriteRecordsResponse.getSdkHttpMetadata().getHttpStatusCode());
         } catch (RejectedRecordsException e) {
-//            System.out.println("RejectedRecords: " + e);
-//            for (Record record : records) {
-//                System.out.println( record.dimensions() + "---" + record.measureValues());
-//            }
-            int i = 0;
 
             for (RejectedRecord rejectedRecord : e.rejectedRecords()) {
+                rejectCount++;
                 System.out.println( records.get(rejectedRecord.recordIndex()));
                 System.out.println(rejectedRecord.reason());
+                System.out.println("^^^^^^^^^^^^^^^^");
 
                 String key = records.get(rejectedRecord.recordIndex()).dimensions().get(0).value();
                 String tradeTime = records.get(rejectedRecord.recordIndex()).measureValues().get(0).value();
 
                 rejectedData.trace(" {} ",records.get(rejectedRecord.recordIndex()));
                 rejectedSummery.debug("Trade time - {}   key - {}   reason - {} ",tradeTime,key,rejectedRecord.reason());
-                System.out.println("??????????????????????");
 
 //                System.out.println(rejectedRecord.record().dimensions());
 
             }
+            batchUploadStatus.info(" ==== Batch size  - {}, Rejected data - {}, Uploaded - {} ==== ",records.size(),rejectCount,records.size()-rejectCount);
             System.out.println("Other records were written successfully. ");
         } catch (Exception e) {
-
+            batchUploadStatus.error("Batch upload failed - {}",e);
         }
     }
 
