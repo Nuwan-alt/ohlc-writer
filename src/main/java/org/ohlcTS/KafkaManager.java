@@ -14,11 +14,13 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 //import com.mubasher.regional.system.Settings;
 import org.apache.commons.math3.util.Precision;
 import org.ohlcTS.TimeStream.Clients.ClientImpl;
+import org.ohlcTS.TimeStream.FlushManager;
 import org.ohlcTS.TimeStream.ServiceManager;
 import org.ohlcTS.kafka.KafkaException;
 import org.ohlcTS.kafka.KafkaProcessor;
@@ -60,7 +62,13 @@ public class KafkaManager extends Thread implements KafkaProcessor {
 
     public static final Logger kafkaDataLogger = LoggerFactory.getLogger("KafkaData");
     public static final Logger kafkaSummaryLogger = LoggerFactory.getLogger("KafkaSummary");
-    public KafkaManager() throws IOException {
+
+
+    private  ExecutorService threadPool;
+    private Map<String,LinkedList<Record>> exchange_map_ohlc;
+    public KafkaManager(ExecutorService thereadPool) throws IOException {
+        this.threadPool = thereadPool;
+        this.exchange_map_ohlc = new HashMap<>();
         this.writeClient = new ClientImpl().buildWriteClient();
         this.serviceManager = new ServiceManager();
         this.ohlcTS_data = new ArrayList<>();
@@ -99,7 +107,7 @@ public class KafkaManager extends Thread implements KafkaProcessor {
                 if (Settings.get("KAFKA_TOPIC_NAME_PREFIX").equals("stock")){
 //                    flushRealtimeData();
                 } else {
-                    flushData();
+                   scheduledFlushData();
                 }
             }
         }, 0, 60000);
@@ -134,96 +142,6 @@ public class KafkaManager extends Thread implements KafkaProcessor {
 
 
         if (topic.equals("stock")){
-//            Optional<Stock> stock = Optional.empty();
-//            Optional<Index> index = Optional.empty();
-//            try {
-//                LogManager.inLogger.info("<KafkaManager> Received new record " + record);
-//                if(record.contains("index")) {
-//                    index = Optional.of(mapper.readValue(record, Index.class));
-//                    if (index.isPresent()) {
-//                        Index indexRecord = index.get();
-//                        String exchange = indexRecord.exchange;
-//
-//                        if (filterByExchangeEnabled && !enabledExchanges.contains(exchange)) {
-//                            return;
-//                        }
-//
-//                        String coreId = null;
-//                        if (Settings.getString("KAFKA_TOPIC_NAME_PREFIX").equals("stock")) {
-//                            coreId = "REAL_TIME_V3";
-//
-//                            //get realtime core name from configuration
-//                            String realTimeCoreName = Settings.getString("REAL_TIME_CORE_NAME");
-//                            if (realTimeCoreName != null) {
-//                                coreId = realTimeCoreName;
-//                            }
-//                        }
-//
-//                        synchronized (dataLock) {
-//                            if (!realtimeDataMap.containsKey(coreId)) {
-//                                realtimeDataMap.put(coreId, new ArrayList<>());
-//                            }
-//
-//                            List<RealtimeSolr> coreData = realtimeDataMap.get(coreId);
-//
-//                            coreData.add(mapToRealtimeSolr(indexRecord));
-//                            LogManager.outLogger.info("<KafkaManager> Added new index record to core " + coreId + " for " +
-//                                    indexRecord.exchange + "|" + indexRecord.symbol);
-//
-//                            if (coreData.size() > batchSize) {
-//                                solrInitializer.getSolrService().contributeRT(solrInitializer.getSolr().isCloudMode(),
-//                                        solrInitializer.getClient(), coreId, coreData, solrInitializer.getSolr().getCommitWithinMilli());
-//                                LogManager.outLogger.info("<KafkaManager> wrote " + coreData.size() + " records to core " + coreId);
-//                                coreData.clear();
-//                            }
-//                        }
-//                    }
-//                } else {
-//                    stock = Optional.of(mapper.readValue(record, Stock.class));
-//                    if (stock.isPresent()) {
-//                        Stock stockRecord = stock.get();
-//                        String exchange = stockRecord.exchange;
-//
-//                        if (filterByExchangeEnabled && !enabledExchanges.contains(exchange)) {
-//                            return;
-//                        }
-//
-//                        String coreId = null;
-//                        if (Settings.getString("KAFKA_TOPIC_NAME_PREFIX").equals("stock")) {
-//                            coreId = "REAL_TIME_V3";
-//
-//                            //get realtime core name from configuration
-//                            String realTimeCoreName = Settings.getString("REAL_TIME_CORE_NAME");
-//                            if (realTimeCoreName != null) {
-//                                coreId = realTimeCoreName;
-//                            }
-//                        }
-//
-//                        synchronized (dataLock) {
-//                            if (!realtimeDataMap.containsKey(coreId)) {
-//                                realtimeDataMap.put(coreId, new ArrayList<>());
-//                            }
-//
-//                            List<RealtimeSolr> coreData = realtimeDataMap.get(coreId);
-//
-//                            coreData.add(mapToRealtimeSolr(stockRecord));
-//                            LogManager.outLogger.info("<KafkaManager> Added new stock record to core " + coreId + " for " +
-//                                    stockRecord.exchange + "|" + stockRecord.symbol);
-//
-//                            if (coreData.size() > batchSize) {
-//                                solrInitializer.getSolrService().contributeRT(solrInitializer.getSolr().isCloudMode(),
-//                                        solrInitializer.getClient(), coreId, coreData, solrInitializer.getSolr().getCommitWithinMilli());
-//                                LogManager.outLogger.info("<KafkaManager> wrote " + coreData.size() + " records to core " + coreId);
-//                                coreData.clear();
-//                            }
-//                        }
-//                    }
-//                }
-//
-//            } catch (Exception e) {
-//                LogManager.serverLogger.error("<KafkaManager> Error processing stock record ", e);
-//                throw new KafkaException("Failed to process record");
-//            }
         } else {
             String period = topic.replace(Settings.get("KAFKA_TOPIC_NAME_PREFIX"), "");
 
@@ -262,37 +180,54 @@ public class KafkaManager extends Thread implements KafkaProcessor {
                         intervalCountMap.put(exchange, ++countForExchange);
 
 
-                        synchronized (dataLock) {
-
-                            long ohlcCount = ohlcTS_data.size();
-                            if (ohlcRecord.time > 0) {
-                                kafkaSummaryLogger.debug("trade time - {}    key - {}~{}",(Instant.parse(Instant.ofEpochSecond(ohlcRecord.time * 60).toString())),ohlcRecord.exchange,ohlcRecord.symbol);
-
-                                OHLC_TS ohlcTs = mapToTimestream(ohlcRecord);
-                                ohlcTS_data.add(buildTimestreamRecords(ohlcTs));
-
-                                kafkaDataLogger.trace(ohlc_tsToString(ohlcTs));
-
-                            }
-
-                            if (ohlcCount > 95) {
-                                this.flushData();
-                                // data write method
-                            }
+                        long ohlcCount = ohlcTS_data.size();
+                        if (ohlcRecord.time > 0) {
+                            kafkaSummaryLogger.debug("trade time - {}    key - {}~{}",(Instant.parse(Instant.ofEpochSecond(ohlcRecord.time * 60).toString())),ohlcRecord.exchange,ohlcRecord.symbol);
+                            OHLC_TS ohlcTs = mapToTimestream(ohlcRecord);
+                            kafkaDataLogger.trace(ohlc_tsToString(ohlcTs));
+                            this.exchangeDataManager(ohlcTs);
                         }
-//
                     }
                 } catch (Exception e) {
-//                    LogManager.serverLogger.error("<KafkaManager> Error processing ohlc record ", e);
                     throw new KafkaException("Failed to process record");
                 }
             }
         }
     }
+    
+    private void exchangeDataManager(OHLC_TS ohlcTs){
+
+        String exchange = ohlcTs.getSourceId();
+
+
+        if ((exchange_map_ohlc.containsKey(exchange))) {
+            exchange_map_ohlc.get(exchange).add(buildTimestreamRecords(ohlcTs));
+        } else {
+            LinkedList<Record> newList = new LinkedList<>();
+            newList.add(buildTimestreamRecords(ohlcTs));
+            exchange_map_ohlc.put(exchange, newList);
+        }
+
+        LinkedList<Record> recordsForSingleExchange = exchange_map_ohlc.get(exchange);
+
+        System.out.println(recordsForSingleExchange.size() + "  " + exchange);
+
+        if (recordsForSingleExchange.size() == 95 ){
+            this.flushData(recordsForSingleExchange);
+
+        }
+
+    }
+
+    private void scheduledFlushData(){
+        for (String key:exchange_map_ohlc.keySet()) {
+            this.flushData(exchange_map_ohlc.get(key));
+        }
+    }
 
     private Record buildTimestreamRecords(OHLC_TS ohlcTs){
 
-        List<MeasureValue> measureValues = new ArrayList<>();
+        List<MeasureValue> measureValues = new LinkedList<>();
 
 //        measureValues.add(MeasureValue.builder().name("ID").value(ohlcTs.getId()).type(MeasureValueType.VARCHAR).build());
 //        measureValues.add(MeasureValue.builder().name("KEY").value(ohlcTs.getKey()).type(MeasureValueType.VARCHAR).build());
@@ -364,12 +299,7 @@ public class KafkaManager extends Thread implements KafkaProcessor {
         measureValues.add(MeasureValue.builder().name("DIVIDEND_AMOUNT").value(String.valueOf(ohlcTs.getDividendAmount())).type(MeasureValueType.DOUBLE).build());
         measureValues.add(MeasureValue.builder().name("CLOSING_BEST_BID").value(String.valueOf(ohlcTs.getClosingBestBid())).type(MeasureValueType.DOUBLE).build());
         measureValues.add(MeasureValue.builder().name("CLOSING_BEST_ASK").value(String.valueOf(ohlcTs.getClosingBestAsk())).type(MeasureValueType.DOUBLE).build());
-//        measureValues.add(MeasureValue.builder().name("time").value(String.valueOf(System.currentTimeMillis())).type(MeasureValueType.VARCHAR).build());
 
-//        List<Dimension> dimensions = new ArrayList<>();
-//
-//        dimensions.add(Dimension.builder().name("Exchange").value(ohlcTs.getSourceId()).build());
-//        dimensions.add(Dimension.builder().name("Key").value(ohlcTs.getKey()).build());
 
         Record ohlcMetric = Record.builder()
                 .measureName(ohlcTs.getKey())
@@ -438,7 +368,6 @@ public class KafkaManager extends Thread implements KafkaProcessor {
                 " <PER>- " + ohlcTs.getPer() ;
 
     }
-
 
     private OHLC_TS mapToTimestream(OHLC ohlc) {
         OHLC_TS ohlcTs = new OHLC_TS();
@@ -624,16 +553,27 @@ public class KafkaManager extends Thread implements KafkaProcessor {
         return Precision.round(value, precision);
     }
 
-    public void flushData() {
-        synchronized (dataLock) {
-            if(ohlcTS_data.size() > 0){
-                this.serviceManager.writeRecords(writeClient,ohlcTS_data);
-                ohlcTS_data.removeAll(ohlcTS_data);
-            }else {
+    public void flushData(LinkedList<Record> records) {
+        System.out.println("============================   going to send data ==============================");
+        LinkedList copyOfDataForUpload;
 
-                System.out.println("No data to flush-----!");
+        if (records.size() > 0){
+            synchronized (records) {
+                copyOfDataForUpload = (LinkedList)records.clone();
+                records.clear();
             }
+            try {
+                Runnable flushManager = new FlushManager(this.serviceManager,this.writeClient,copyOfDataForUpload);
+                threadPool.execute(flushManager);
+            }catch (Exception e){
+                System.out.println(e);
+            }
+
+
+
         }
+
+
     }
 
     private void printStatistics() {

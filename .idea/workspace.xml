@@ -4,7 +4,19 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f9b72370-fa20-4534-bfbd-5b7b642ba100" name="Changes" comment="" />
+    <list default="true" id="f9b72370-fa20-4534-bfbd-5b7b642ba100" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/src/main/java/org/ohlcTS/TimeStream/FlushManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/config/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/KafkaData.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/batchUploadStatus.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/kafkaSummary.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/rejectedData.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/rejectedSummery.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/ohlcTS/KafkaManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/ohlcTS/KafkaManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/ohlcTS/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/ohlcTS/Main.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/ohlcTS/TimeStream/ServiceManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/ohlcTS/TimeStream/ServiceManager.java" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
