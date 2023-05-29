@@ -9,6 +9,7 @@ import com.mubasher.regional.data.OHLC;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -18,6 +19,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 //import com.mubasher.regional.system.Settings;
+
+
 import org.apache.commons.math3.util.Precision;
 import org.ohlcTS.TimeStream.Clients.ClientImpl;
 import org.ohlcTS.TimeStream.FlushManager;
@@ -47,12 +50,9 @@ public class KafkaManager extends Thread implements KafkaProcessor {
     private long lastStatusRecordTime;
     private Instant applicationStartTime;
     private List<String> enabledExchanges;
-
     private Map<String,String> Settings;
-
     private List<Record> ohlcTS_data;
     private boolean filterByExchangeEnabled;
-
     private ServiceManager serviceManager;
     private TimestreamWriteClient writeClient;
 
@@ -63,16 +63,21 @@ public class KafkaManager extends Thread implements KafkaProcessor {
     public static final Logger kafkaDataLogger = LoggerFactory.getLogger("KafkaData");
     public static final Logger kafkaSummaryLogger = LoggerFactory.getLogger("KafkaSummary");
 
+    private String[] tableMapper;
+
 
     private  ExecutorService threadPool;
     private Map<String,LinkedList<Record>> exchange_map_ohlc;
+
     public KafkaManager(ExecutorService thereadPool) throws IOException {
+        Setting setting = new Setting();
+        this.Settings = setting.getSettings();
+        this.tableMapper = Settings.get("TABLE_MAP").split(",");
         this.threadPool = thereadPool;
         this.exchange_map_ohlc = new HashMap<>();
         this.writeClient = new ClientImpl().buildWriteClient();
         this.serviceManager = new ServiceManager();
         this.ohlcTS_data = new ArrayList<>();
-        Setting setting = new Setting();
         this.Settings = setting.getSettings();
         init();
         this.setPriority(8);
@@ -198,30 +203,42 @@ public class KafkaManager extends Thread implements KafkaProcessor {
     private void exchangeDataManager(OHLC_TS ohlcTs){
 
         String exchange = ohlcTs.getSourceId();
+        String symbol = ohlcTs.getTickerId();
+        int table_map_index = this.tableCalculator(symbol);
+        String table_name = Settings.get("TEST_ENABLE") + exchange + "-" + (String) Array.get(tableMapper, table_map_index);
 
 
-        if ((exchange_map_ohlc.containsKey(exchange))) {
-            exchange_map_ohlc.get(exchange).add(buildTimestreamRecords(ohlcTs));
+        if ((exchange_map_ohlc.containsKey(table_name))) {
+            exchange_map_ohlc.get(table_name).add(buildTimestreamRecords(ohlcTs));
         } else {
             LinkedList<Record> newList = new LinkedList<>();
             newList.add(buildTimestreamRecords(ohlcTs));
-            exchange_map_ohlc.put(exchange, newList);
+            exchange_map_ohlc.put(table_name, newList);
         }
 
-        LinkedList<Record> recordsForSingleExchange = exchange_map_ohlc.get(exchange);
+        LinkedList<Record> recordsForSingleExchange = exchange_map_ohlc.get(table_name);
 
         System.out.println(recordsForSingleExchange.size() + "  " + exchange);
 
         if (recordsForSingleExchange.size() == 95 ){
-            this.flushData(recordsForSingleExchange);
-
+            this.flushData(recordsForSingleExchange,table_name);
         }
-
     }
 
+    public int tableCalculator(String ticker_Id){
+        int databaseIndex = -1;
+        int ascii = Character.toLowerCase( ticker_Id.charAt(0));
+
+        if(48 <=ascii && ascii <=57){
+            databaseIndex = ascii - 22;
+        } else if (97 <=ascii && ascii <= 122) {
+            databaseIndex = ascii - 97;
+        }
+        return Math.floorDiv(databaseIndex,6);
+    }
     private void scheduledFlushData(){
         for (String key:exchange_map_ohlc.keySet()) {
-            this.flushData(exchange_map_ohlc.get(key));
+            this.flushData(exchange_map_ohlc.get(key),key);
         }
     }
 
@@ -553,7 +570,8 @@ public class KafkaManager extends Thread implements KafkaProcessor {
         return Precision.round(value, precision);
     }
 
-    public void flushData(LinkedList<Record> records) {
+    public void flushData(LinkedList<Record> records, String table_name) {
+        System.out.println(table_name);
         System.out.println("============================   going to send data ==============================");
         LinkedList copyOfDataForUpload;
 
@@ -563,17 +581,12 @@ public class KafkaManager extends Thread implements KafkaProcessor {
                 records.clear();
             }
             try {
-                Runnable flushManager = new FlushManager(this.serviceManager,this.writeClient,copyOfDataForUpload);
+                Runnable flushManager = new FlushManager(this.serviceManager,this.writeClient,copyOfDataForUpload, table_name);
                 threadPool.execute(flushManager);
             }catch (Exception e){
                 System.out.println(e);
             }
-
-
-
         }
-
-
     }
 
     private void printStatistics() {

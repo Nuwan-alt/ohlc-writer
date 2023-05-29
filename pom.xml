@@ -6,7 +6,7 @@
 
     <groupId>org.ohlcTS</groupId>
     <artifactId>ohlc-TS</artifactId>
-    <version>X.X.1.2309.0.001</version>
+    <version>X.X.1.2309.0.002</version>
     <name>timestream-writer</name>
     <description>Timestream-writer</description>
     <packaging>jar</packaging>

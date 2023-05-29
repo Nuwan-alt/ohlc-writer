@@ -9,22 +9,24 @@ import java.util.List;
 public class FlushManager implements Runnable{
 
     ServiceManager serviceManager;
+    String table_name;
     TimestreamWriteClient writeClient;
     LinkedList<Record> records;
-    public FlushManager(ServiceManager serviceManager,TimestreamWriteClient writeClient,LinkedList<Record> records){
+    public FlushManager(ServiceManager serviceManager,TimestreamWriteClient writeClient,LinkedList<Record> records, String table_name){
+        this.table_name = table_name;
         this.serviceManager = serviceManager;
         this.writeClient = writeClient;
         this.records = records;
     }
     @Override
     public void run() {
-        this.flushData(serviceManager,writeClient, records);
+        this.flushData(serviceManager,writeClient, records, table_name);
     }
 
-    private void flushData(ServiceManager serviceManager, TimestreamWriteClient writeClient,LinkedList<Record> records) {
+    private void flushData(ServiceManager serviceManager, TimestreamWriteClient writeClient,LinkedList<Record> records,String table_name) {
 
         if(records.size() > 0){
-            serviceManager.writeRecords(writeClient,records);
+            serviceManager.writeRecords(writeClient,records,table_name);
         }else {
             System.out.println("No data to flush-----!");
         }

@@ -38,8 +38,8 @@ APP_LOG="-Dlogback.configurationFile=./config/logback.xml"
 NOHUP_FILE="nohup-`date +"%d-%m-%Y_%T_%p"`.out"
 
 if [ "${CP_OR_JAR}" == "cp" ]; then
-  ${NOHUP} ${JVM} -javaagent: ${JVM_OPT} ${JVM_DBG} ${JVM_LOG} ${APP_OPT} ${JVM_PARAMS} ${APP_LOG} -Dotel.javaagent.configuration-file=${TRACER_PROPS} -cp "${APP_CLASSPATH}" ${APP_MAIN} ${APP_PARAMS} &>> ./logs/${NOHUP_FILE} &
+  ${NOHUP} ${JVM}  ${JVM_OPT} ${JVM_DBG} ${JVM_LOG} ${APP_OPT} ${JVM_PARAMS} ${APP_LOG} -Dotel.javaagent.configuration-file=${TRACER_PROPS} -cp "${APP_CLASSPATH}" ${APP_MAIN} ${APP_PARAMS} &>> ./logs/${NOHUP_FILE} &
 else
-  ${NOHUP} ${JVM} -javaagent: ${JVM_OPT} ${JVM_DBG} ${JVM_LOG} ${APP_OPT} ${JVM_PARAMS} ${APP_LOG} -Dotel.javaagent.configuration-file=${TRACER_PROPS} -jar *.jar &>> ./logs/$NOHUP_FILE &
+  ${NOHUP} ${JVM} ${JVM_OPT} ${JVM_DBG} ${JVM_LOG} ${APP_OPT} ${JVM_PARAMS} ${APP_LOG} -Dotel.javaagent.configuration-file=${TRACER_PROPS} -jar *.jar &>> ./logs/$NOHUP_FILE &
 fi
 

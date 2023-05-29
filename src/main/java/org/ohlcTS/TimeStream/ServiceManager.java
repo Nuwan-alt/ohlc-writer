@@ -72,15 +72,15 @@ public class ServiceManager {
 
     }
 
-    public void writeRecords(TimestreamWriteClient timestreamWriteClient, List<Record> records) {
+    public void writeRecords(TimestreamWriteClient timestreamWriteClient, List<Record> records, String table_name) {
 
         int rejectCount = 0;
         System.out.println("Records writing started");
-        batchUploadStatus.info(" **** Records writing started **** ");
+        batchUploadStatus.info(" **** {} - Records writing started **** ", table_name);
         
         WriteRecordsRequest writeRecordsRequest = WriteRecordsRequest.builder()
                 .databaseName(DATABASE_NAME)
-                .tableName(TABLE_NAME)
+                .tableName(table_name)
                 .records(records)
                 .build();
 
@@ -88,7 +88,7 @@ public class ServiceManager {
             WriteRecordsResult writeRecordsResult;
             WriteRecordsResponse WriteRecordsResponse = timestreamWriteClient.writeRecords(writeRecordsRequest);
 
-            batchUploadStatus.info("======= Successfully Uploaded! Batch size - {} =======",records.size());
+            batchUploadStatus.info("======= {} - Successfully Uploaded! Batch size - {} =======",table_name,records.size());
 
         } catch (RejectedRecordsException e) {
 
